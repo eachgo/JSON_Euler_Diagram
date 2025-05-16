@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON 可视化 生成欧拉图</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; color: #333; display: flex; flex-direction: row; height: 100vh; overflow: hidden; }
+        #visualizationRoot { flex-grow: 1; border: 1px solid #ccc; padding: 10px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1) inset; overflow: auto; height: 100%; }
+        #sidePanel { width: 300px; flex-shrink: 0; background-color: #e9e9e9; box-shadow: -2px 0 4px rgba(0,0,0,0.1); padding: 15px; overflow-y: auto; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+        #sidePanel h1 { font-size: 1.5em; margin-top: 0; margin-bottom: 15px; color: #333; text-align: center; }
+        #controls { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+        #controls label, #controls input[type="file"], #controls p { display: block; margin-bottom: 8px; }
+        #controls input[type="file"] { width: 100%; }
+        #themeSelectorContainer { margin-bottom: 15px; }
+        #themeSelectorContainer label { margin-right: 10px; font-weight: bold; }
+        #themeSelector { padding: 5px; border-radius: 4px; border: 1px solid #ccc; min-width: 150px;}
+        #colorCustomization { margin-top: 10px; }
+        #colorCustomization h2 { font-size: 1.1em; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .color-setting-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
+        .color-preview-swatch { width: 20px; height: 20px; border: 1px solid #888; margin-right: 8px; border-radius: 3px; flex-shrink: 0; }
+        .color-setting-item label { width: 110px; margin-right: 5px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .color-setting-item input[type="text"] { flex-grow: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px; }
+        .color-setting-item input[type="text"].invalid-color { border-color: red; background-color: #ffe0e0; }
+        #colorActionButtons { margin-top: 15px; display: flex; gap: 10px; }
+        #colorActionButtons button { flex-grow: 1; padding: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: #f0f0f0; cursor: pointer; }
+        #colorActionButtons button:hover { background-color: #e0e0e0; }
+        .json-node { margin: 3px; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; box-sizing: border-box; position: relative; }
+        .is-primitive-leaf { display: inline-block; vertical-align: top; padding: 1px 3px; 
+            min-height: 3em;overflow: hidden; min-width: 30%;}
+        .is-primitive-leaf .json-node-content-svg { height: 20px; min-height: 20px; }
+        .has-children-container { padding: 3px; }
+        .has-children-container > .node-label-svg { height: 22px; min-height: 22px; width: 100%; display: block; margin-bottom: 4px; cursor: pointer; border-radius: 2px; }
+        .has-children-container > .node-label-svg:hover { filter: brightness(1.1); }
+        .node-children-container { padding-left: 15px; margin-left: 5px; border-left: 2px solid rgba(0,0,0,0.15); transition: max-height 0.3s ease-out, opacity 0.3s ease-out;  overflow: hidden; opacity: 1;}
+        .has-children-container.is-collapsed > .node-children-container { max-height: 0; opacity: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+        .has-children-container.is-collapsed > .node-label-svg { margin-bottom: 0; }
+        .svg-rect { }
+        .svg-text { font-size: 10px; dominant-baseline: middle; pointer-events: none; }
+        .svg-key-text { font-weight: bold; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div id="visualizationRoot"></div>
+    <div id="sidePanel">
+        <h1>由JSON文件生成欧拉图</h1>
+        <div id="controls">
+            <label for="jsonFile">上传JSON文件:</label>
+            <input type="file" id="jsonFile" accept=".json">
+            <p id="status"></p>
+        </div>
+        <div id="themeSelectorContainer">
+            <label for="themeSelector">选择主题:</label>
+            <select id="themeSelector"></select>
+        </div>
+        <div id="colorCustomization">
+            <h2>颜色设置 (当前主题: <span id="currentThemeNameDisplay"></span>)</h2>
+            <div id="colorSettingsContainer"></div>
+            <div id="colorActionButtons">
+                <button id="applyColorsBtn">应用自定义颜色</button>
+                <button id="resetThemeColorsBtn">恢复主题默认色</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const COLOR_THEMES = {
+            "Default": { // Brighter, more distinct leaf colors, container colors with some alpha
+                OBJECT: 'rgba(180, 220, 180, 0.5)', // Softer green bg
+                ARRAY: 'rgba(190, 210, 230, 0.5)',  // Softer blue bg
+                STRING: 'rgb(0, 116, 217)',        // More solid blue for text
+                NUMBER: 'rgb(217, 0, 116)',        // More solid magenta for text
+                BOOLEAN_TRUE: 'rgb(46, 204, 64)',   // Solid green
+                BOOLEAN_FALSE: 'rgb(255, 65, 54)',  // Solid red
+                NULL: 'rgb(128, 128, 128)',        // Solid grey
+                TEXT_COLOR: '#111111',
+                VIZ_BACKGROUND: '#ffffff'
+            },
+            "Monokai": { // Alpha slightly reduced for backgrounds, increased for foregrounds
+                OBJECT: 'rgba(166, 226, 46, 0.45)', // Monokai Green (bg)
+                ARRAY: 'rgba(102, 217, 239, 0.45)', // Monokai Cyan (bg)
+                STRING: 'rgb(230, 219, 116)',     // Monokai Yellow (fg)
+                NUMBER: 'rgb(174, 129, 255)',     // Monokai Purple (fg)
+                BOOLEAN_TRUE: 'rgb(166, 226, 46)',  // Brighter Green (fg)
+                BOOLEAN_FALSE: 'rgb(249, 38, 114)', // Brighter Pink (fg)
+                NULL: 'rgb(117, 113, 94)',         // Monokai Comment Grey (fg)
+                TEXT_COLOR: '#F8F8F2',
+                VIZ_BACKGROUND: '#272822'
+            },
+            "Solarized Dark": {
+                OBJECT: 'rgba(133, 153, 0, 0.4)', ARRAY: 'rgba(38, 139, 210, 0.4)',
+                STRING: 'rgb(42, 161, 152)', NUMBER: 'rgb(211, 54, 130)',
+                BOOLEAN_TRUE: 'rgb(133, 153, 0)', BOOLEAN_FALSE: 'rgb(220, 50, 47)',
+                NULL: 'rgb(101, 123, 131)', TEXT_COLOR: '#93a1a1', // Base01 for text
+                VIZ_BACKGROUND: '#002b36' // Base03
+            },
+            "Solarized Light": {
+                OBJECT: 'rgba(133, 153, 0, 0.3)', ARRAY: 'rgba(38, 139, 210, 0.3)',
+                STRING: 'rgb(42, 161, 152)', NUMBER: 'rgb(211, 54, 130)',
+                BOOLEAN_TRUE: 'rgb(133, 153, 0)', BOOLEAN_FALSE: 'rgb(220, 50, 47)',
+                NULL: 'rgb(101, 123, 131)', TEXT_COLOR: '#586e75', // Base0
+                VIZ_BACKGROUND: '#fdf6e3' // Base3
+            }
+        };
+        let COLORS = {};
+        let currentThemeName = "Default"; 
+
+        const LEGEND_LABELS = { 
+            OBJECT: 'Object (对象)', ARRAY: 'Array (数组)', STRING: 'String (字符串)',
+            NUMBER: 'Number (数字)', BOOLEAN_TRUE: 'Boolean: true', BOOLEAN_FALSE: 'Boolean: false',
+            NULL: 'Null (空值)'
+        };
+        const SVG_NS = "http://www.w3.org/2000/svg";
+        const PRIMITIVE_SVG_HEIGHT = 20; const TEXT_PADDING_X = 5;
+
+        const fileInput = document.getElementById('jsonFile');
+        const vizRoot = document.getElementById('visualizationRoot');
+        const statusP = document.getElementById('status');
+        const themeSelector = document.getElementById('themeSelector');
+        const currentThemeNameDisplay = document.getElementById('currentThemeNameDisplay');
+        const colorSettingsContainer = document.getElementById('colorSettingsContainer');
+        const applyColorsBtn = document.getElementById('applyColorsBtn');
+        const resetThemeColorsBtn = document.getElementById('resetThemeColorsBtn');
+        
+        let currentJsonData = null;
+
+        // --- 初始化 ---
+        function initializeApp() {
+            populateThemeSelector();
+            const storedThemeName = localStorage.getItem('jsonVizThemeName');
+            if (storedThemeName && COLOR_THEMES[storedThemeName]) {
+                currentThemeName = storedThemeName;
+            }
+            // 设置下拉菜单以反映当前主题
+            themeSelector.value = currentThemeName; 
+            // 加载并应用初始主题
+            loadAndApplyTheme(currentThemeName); 
+        }
+
+
+        // --- 事件监听器 ---
+        fileInput.addEventListener('change', handleFile);
+        themeSelector.addEventListener('change', handleThemeChange);
+        applyColorsBtn.addEventListener('click', applyCustomColorsToCurrentTheme);
+        resetThemeColorsBtn.addEventListener('click', resetCurrentThemeToDefaults);
+
+
+        /**
+         * 填充主题选择器的选项
+         */
+        function populateThemeSelector() { 
+            for (const themeName in COLOR_THEMES) {
+                const option = document.createElement('option');
+                option.value = themeName;
+                option.textContent = themeName;
+                themeSelector.appendChild(option);
+            }
+        }
+
+        /**
+         * 加载主题的颜色（基础颜色或存储的自定义颜色）到全局 COLORS 对象中，然后应用到 UI 上。
+         * @param {string} themeName - 要加载的主题名称
+         */
+        function loadAndApplyTheme(themeName) {
+            currentThemeName = themeName;
+            // 确保下拉菜单同步
+            themeSelector.value = currentThemeName; 
+            currentThemeNameDisplay.textContent = currentThemeName;
+
+            const themeDefaults = COLOR_THEMES[currentThemeName];
+            const storedCustomColors = localStorage.getItem(`jsonVizCustomColors_${currentThemeName}`);
+            
+            if (storedCustomColors) {
+                try {
+                    const parsedCustomColors = JSON.parse(storedCustomColors);
+                    COLORS = { ...themeDefaults, ...parsedCustomColors };
+                } catch (e) {
+                    console.error(`解析主题 ${currentThemeName} 的自定义颜色时出错:`, e);
+                    // 回退到主题默认颜色
+                    COLORS = { ...themeDefaults }; 
+                }
+            } else {
+                // 没有自定义颜色，使用主题默认颜色
+                COLORS = { ...themeDefaults }; 
+            }
+
+            // 应用主题的视觉方面
+            // 如果未指定，则默认为白色
+            vizRoot.style.backgroundColor = COLORS.VIZ_BACKGROUND || '#ffffff'; 
+            // 注意: renderJsonTree 将使用 COLORS.TEXT_COLOR 作为 SVG 文本颜色
+
+            // 使用当前 COLORS 更新颜色输入字段
+            generateColorSettingInputs(); 
+            if (currentJsonData) {
+                renderJsonTree(currentJsonData, vizRoot, 'ROOT');
+            }
+            // 这里不需要保存，因为此函数是关于加载和应用的。保存操作在显式操作时进行。
+        }
+        
+        /**
+         * 保存当前主题名称及其当前的 COLORS（可能是自定义的）
+         */
+        function saveCurrentThemeState() { 
+            localStorage.setItem('jsonVizThemeName', currentThemeName);
+            localStorage.setItem(`jsonVizCustomColors_${currentThemeName}`, JSON.stringify(COLORS));
+        }
+        
+        /**
+         * 处理主题选择更改事件
+         */
+        function handleThemeChange() {
+            const selectedThemeName = themeSelector.value;
+            loadAndApplyTheme(selectedThemeName);
+            // 保存新选择的主题为活动主题
+            saveCurrentThemeState(); 
+        }
+
+        /**
+         * 验证并规范化颜色字符串
+         * @param {string} colorString - 要验证和规范化的颜色字符串
+         * @returns {string|null} - 规范化后的颜色字符串，如果无效则返回 null
+         */
+        function validateAndNormalizeColor(colorString) { /* ... 保持不变 ... */ 
+            const tempEl = document.createElement('div'); tempEl.style.color = 'transparent';
+            tempEl.style.color = colorString; const computedColor = window.getComputedStyle(tempEl).color;
+            if (computedColor && computedColor !== 'transparent' && computedColor !== 'rgba(0, 0, 0, 0)' && (colorString.toLowerCase() === 'black' || computedColor !== 'rgb(0, 0, 0)')) {
+                if (colorString.trim() === '' && computedColor === 'rgb(0, 0, 0)') return null;
+                return computedColor; 
+            } return null;
+        }
+
+        /**
+         * 生成颜色设置输入字段，确保使用当前主题名称和全局 COLORS 对象
+         */
+        function generateColorSettingInputs() { /* ... 保持不变，确保使用 currentThemeName 和全局 COLORS ... */
+            colorSettingsContainer.innerHTML = '';
+            const themeColorKeys = Object.keys(COLOR_THEMES[currentThemeName] || COLOR_THEMES["Default"]);
+
+            for (const type of themeColorKeys) {
+                // 仅为 LEGEND_LABELS 中的类型创建输入字段
+                if (LEGEND_LABELS[type]) { 
+                    const itemDiv = document.createElement('div'); itemDiv.classList.add('color-setting-item');
+                    const swatch = document.createElement('div'); swatch.classList.add('color-preview-swatch');
+                    swatch.style.backgroundColor = COLORS[type]; 
+                    itemDiv.appendChild(swatch);
+                    const label = document.createElement('label'); label.textContent = LEGEND_LABELS[type] + ':';
+                    label.htmlFor = `color-input-${type}`; itemDiv.appendChild(label);
+                    const colorInput = document.createElement('input'); colorInput.type = 'text';
+                    colorInput.id = `color-input-${type}`; colorInput.value = COLORS[type];
+                    colorInput.dataset.type = type;
+                    colorInput.addEventListener('input', () => {
+                        const normalizedColor = validateAndNormalizeColor(colorInput.value);
+                        if (normalizedColor) { swatch.style.backgroundColor = normalizedColor; colorInput.classList.remove('invalid-color'); }
+                        else { swatch.style.backgroundColor = 'transparent'; colorInput.classList.add('invalid-color'); }
+                    });
+                    itemDiv.appendChild(colorInput); colorSettingsContainer.appendChild(itemDiv);
+                }
+            }
+        }
+
+        /**
+         * 将自定义颜色应用到当前主题
+         */
+        function applyCustomColorsToCurrentTheme() {
+            let allValid = true;
+            // 仅存储更改的值
+            const tempCustomColorsForThisTheme = {}; 
+            document.querySelectorAll('#colorSettingsContainer input[type="text"]').forEach(input => {
+                const type = input.dataset.type;
+                const normalizedColor = validateAndNormalizeColor(input.value);
+                if (normalizedColor) {
+                    // 仅当与主题的基础颜色不同时才存储
+                    if (COLOR_THEMES[currentThemeName][type] !== normalizedColor) {
+                         tempCustomColorsForThisTheme[type] = normalizedColor;
+                    }
+                    input.classList.remove('invalid-color');
+                } else { allValid = false; input.classList.add('invalid-color'); /* ... 错误消息 ... */ }
+            });
+
+            if (allValid) {
+                // 更新工作 COLORS: 从基础主题开始，然后覆盖该主题的所有存储的自定义颜色，
+                // 然后覆盖新应用的更改。
+                // 更简单地说: 直接用验证后的输入更新 COLORS。
+                const newWorkingColors = {};
+                 document.querySelectorAll('#colorSettingsContainer input[type="text"]').forEach(input => {
+                    const type = input.dataset.type;
+                    // 已经验证过
+                    newWorkingColors[type] = validateAndNormalizeColor(input.value); 
+                });
+                // 确保包含所有主题键
+                COLORS = {...COLOR_THEMES[currentThemeName], ...newWorkingColors}; 
+
+                // 这将 `COLORS` 作为自定义颜色保存到 `currentThemeName` 中
+                saveCurrentThemeState(); 
+                // 重新加载并重新应用以正确反映更改
+                loadAndApplyTheme(currentThemeName); 
+                statusP.textContent = "自定义颜色已应用。"; statusP.style.color = 'green';
+            } else { /* ... 错误处理 ... */ 
+                statusP.textContent = `存在无效的颜色值。`; statusP.style.color = 'red';
+            }
+            setTimeout(() => { statusP.textContent = ''; statusP.style.color = ''; }, 3000);
+        }
+
+        /**
+         * 将当前主题恢复到默认颜色
+         */
+        function resetCurrentThemeToDefaults() {
+            // 重新加载纯主题颜色
+            COLORS = { ...COLOR_THEMES[currentThemeName] }; 
+            // 移除该主题的自定义颜色
+            localStorage.removeItem(`jsonVizCustomColors_${currentThemeName}`); 
+            // 注意: 这里不需要保存 jsonVizThemeName，因为它没有改变
+            // 这将加载纯主题并重新应用
+            loadAndApplyTheme(currentThemeName); 
+            statusP.textContent = `主题 "${currentThemeName}" 已恢复默认颜色。`; statusP.style.color = 'green';
+            setTimeout(() => { statusP.textContent = ''; statusP.style.color = '';}, 3000);
+        }
+
+        /**
+         * 处理文件上传事件
+         * @param {Event} event - 文件上传事件对象
+         */
+        function handleFile(event) { /* ... 保持不变 ... */ 
+            const file = event.target.files[0];
+            if (file && file.type === "application/json") {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        currentJsonData = JSON.parse(e.target.result); 
+                        statusP.textContent = "文件已加载，正在生成图表..."; statusP.style.color = '';
+                        renderJsonTree(currentJsonData, vizRoot, 'ROOT');
+                        statusP.textContent = "图表生成完毕。";
+                    } catch (error) { currentJsonData = null; console.error("JSON 解析错误:", error); statusP.textContent = `JSON 解析错误: ${error.message}`; statusP.style.color = 'red'; clearVisualization(); }
+                };
+                reader.onerror = function() { currentJsonData = null; statusP.textContent = "文件读取错误。"; statusP.style.color = 'red'; clearVisualization(); }
+                reader.readAsText(file);
+            } else { if(file) {statusP.textContent = "请选择一个有效的.json文件。"; statusP.style.color = 'orange';} }
+        }
+        /**
+         * 清除可视化区域的内容
+         */
+        function clearVisualization() { vizRoot.innerHTML = ''; }
+        /* ... createSvgElement, estimateTextWidth, lightenDarken 函数 ... */
+        /**
+         * 创建一个 SVG 元素
+         * @param {string} tagName - SVG 元素的标签名
+         * @param {Object} attributes - 要设置的属性对象
+         * @returns {SVGElement} - 创建好的 SVG 元素
+         */
+        function createSvgElement(tagName, attributes) { const el = document.createElementNS(SVG_NS, tagName); for (const key in attributes) { el.setAttribute(key, attributes[key]); } return el; }
+        /**
+         * 估算文本的宽度
+         * @param {string} text - 要估算宽度的文本
+         * @param {string} [font="10px sans-serif"] - 文本的字体样式
+         * @returns {number} - 估算的文本宽度
+         */
+        function estimateTextWidth(text, font = "10px sans-serif") { const canvas = estimateTextWidth.canvas || (estimateTextWidth.canvas = document.createElement("canvas")); const context = canvas.getContext("2d"); context.font = font; const metrics = context.measureText(text); return metrics.width; }
+        /**
+         * 调整 RGBA 颜色的亮度
+         * @param {string} rgbaColor - 要调整的 RGBA 颜色字符串
+         * @param {number} percent - 亮度调整百分比
+         * @returns {string} - 调整后的 RGBA 颜色字符串
+         */
+        function lightenDarkenRgba(rgbaColor, percent) { const parts = rgbaColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/); if (!parts) return rgbaColor; let r = parseInt(parts[1]); let g = parseInt(parts[2]); let b = parseInt(parts[3]); const a = parseFloat(parts[4]); const p = percent / 100; r = Math.round(Math.min(255, Math.max(0, r * (1 + p)))); g = Math.round(Math.min(255, Math.max(0, g * (1 + p)))); b = Math.round(Math.min(255, Math.max(0, b * (1 + p)))); return `rgba(${r}, ${g}, ${b}, ${a})`; }
+        /**
+         * 调整颜色的亮度
+         * @param {string} color - 要调整的颜色字符串
+         * @param {number} percent - 亮度调整百分比
+         * @returns {string} - 调整后的颜色字符串
+         */
+        function lightenDarkenColor(color, percent) { if (color.startsWith("rgb(")) { const parts = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/); if (!parts) return color; let r = parseInt(parts[1]), newR, g = parseInt(parts[2]), newG, b = parseInt(parts[3]), newB; const p = percent / 100; newR = Math.round(Math.min(255, Math.max(0, r * (1 + p) ))); newG = Math.round(Math.min(255, Math.max(0, g * (1 + p) ))); newB = Math.round(Math.min(255, Math.max(0, b * (1 + p) ))); return `rgb(${newR}, ${newG}, ${newB})`; } let usePound = false; if (color[0] == "#") { color = color.slice(1); usePound = true; } let num = parseInt(color, 16); let r_ = (num >> 16); let newR_ = Math.round(Math.min(255, Math.max(0, r_ * (1 + percent/100) ))); let b__ = ((num >> 8) & 0x00FF); let newB__ = Math.round(Math.min(255, Math.max(0, b__ * (1 + percent/100) ))); let g__ = (num & 0x0000FF); let newG__ = Math.round(Math.min(255, Math.max(0, g__ * (1 + percent/100) ))); let newColorHex = (newG__ | (newB__ << 8) | (newR__ << 16)).toString(16); while(newColorHex.length < 6) { newColorHex = "0" + newColorHex; } return (usePound ? "#" : "") + newColorHex; }
+        /**
+         * 渲染 JSON 树
+         * @param {any} data - 要渲染的 JSON 数据
+         * @param {HTMLElement} parentHtmlElement - 父 HTML 元素
+         * @param {string} keyName - 键名
+         */
+        function renderJsonTree(data, parentHtmlElement, keyName) { /* ... (与之前相同，确保使用 COLORS.TEXT_COLOR) ... */
+            if (parentHtmlElement === vizRoot) { clearVisualization(); } const nodeDiv = document.createElement('div'); nodeDiv.classList.add('json-node'); let nodeColorValue, nodeType, fullDisplayText = '', shortDisplayText = '', isContainer = false; if (typeof data === 'string') { nodeColorValue = COLORS.STRING; nodeType = 'string'; fullDisplayText = `"${data}"`; } else if (typeof data === 'number') { nodeColorValue = COLORS.NUMBER; nodeType = 'number'; fullDisplayText = String(data); } else if (typeof data === 'boolean') { nodeColorValue = data ? COLORS.BOOLEAN_TRUE : COLORS.BOOLEAN_FALSE; nodeType = 'boolean'; fullDisplayText = String(data); } else if (data === null) { nodeColorValue = COLORS.NULL; nodeType = 'null'; fullDisplayText = 'null'; } else if (Array.isArray(data)) { nodeColorValue = COLORS.ARRAY; nodeType = 'array'; isContainer = true; fullDisplayText = `Array [${data.length}]`; } else if (typeof data === 'object') { nodeColorValue = COLORS.OBJECT; nodeType = 'object'; isContainer = true; fullDisplayText = `Object {${Object.keys(data).length}}`; } else { return; } nodeDiv.classList.add(`json-type-${nodeType}`); nodeDiv.style.backgroundColor = nodeColorValue; if (!isContainer) { nodeDiv.classList.add('is-primitive-leaf'); } else { nodeDiv.classList.add(nodeType === 'array' ? 'json-array' : 'json-object'); nodeDiv.classList.add('has-children-container');  } parentHtmlElement.appendChild(nodeDiv); const svg = createSvgElement('svg', {}); svg.classList.add(isContainer ? 'node-label-svg' : 'json-node-content-svg'); let labelRectColor; const mainColorIsRgba = typeof nodeColorValue === 'string' && nodeColorValue.startsWith('rgba'); if (isContainer) { if (mainColorIsRgba) { labelRectColor = lightenDarkenRgba(nodeColorValue, 15); } else { labelRectColor = lightenDarkenColor(nodeColorValue, 15); } } else { labelRectColor = nodeColorValue; } const rect = createSvgElement('rect', { x: 0, y: 0, width: '100%', height: '100%', fill: labelRectColor, class: 'svg-rect' }); svg.appendChild(rect); const textLabel = createSvgElement('text', { x: TEXT_PADDING_X, y: '50%', class: 'svg-text', fill: COLORS.TEXT_COLOR || '#111' }); let effectiveKeyName = ''; const parentIsArrayChildren = parentHtmlElement.classList.contains('json-array-children'); if (keyName && keyName !== 'ROOT') { if (parentIsArrayChildren || !isContainer) { effectiveKeyName = keyName; } else if (isContainer && !parentIsArrayChildren) { effectiveKeyName = keyName; } } let fullLabelForWidth = (effectiveKeyName ? `${effectiveKeyName}: ` : '') + fullDisplayText; let fontSize = "10px"; if (isContainer || (effectiveKeyName && !parentIsArrayChildren && keyName !== 'ROOT')) { fontSize = "11px"; } let estimatedWidth = estimateTextWidth(fullLabelForWidth, `${fontSize} sans-serif`) + (2 * TEXT_PADDING_X); if(!isContainer) { nodeDiv.style.width = `${Math.max(30, estimatedWidth)}px`; svg.style.height = `${PRIMITIVE_SVG_HEIGHT}px`; } else { svg.style.height = "22px";  } shortDisplayText = fullDisplayText; const maxChars = isContainer ? 25 : 18; if (fullDisplayText.length > maxChars) { shortDisplayText = fullDisplayText.substring(0, maxChars - 3) + "..."; } if(effectiveKeyName) { const keySpan = createSvgElement('tspan', {class: 'svg-key-text', 'font-size': fontSize}); keySpan.textContent = `${effectiveKeyName}: `; textLabel.appendChild(keySpan); } const valueSpan = createSvgElement('tspan', {'font-size': fontSize}); valueSpan.textContent = shortDisplayText; if (isContainer) { const indicatorSpan = createSvgElement('tspan', {'font-size': '9px', 'dx': '5px'}); indicatorSpan.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]'; indicatorSpan.classList.add('collapse-indicator'); valueSpan.appendChild(indicatorSpan); } textLabel.appendChild(valueSpan); svg.appendChild(textLabel); nodeDiv.appendChild(svg); if (isContainer) { const childrenContainerDiv = document.createElement('div'); childrenContainerDiv.classList.add('node-children-container'); childrenContainerDiv.classList.add(nodeType === 'array' ? 'json-array-children' : 'json-object-children'); nodeDiv.appendChild(childrenContainerDiv); svg.addEventListener('dblclick', function() { nodeDiv.classList.toggle('is-collapsed'); const indicator = svg.querySelector('.collapse-indicator'); if (indicator) { indicator.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]'; } }); const childData = (nodeType === 'array') ? data : Object.entries(data); if (childData.length === 0) { childrenContainerDiv.style.minHeight = '0px'; childrenContainerDiv.style.paddingLeft = '0px'; childrenContainerDiv.style.marginLeft = '0px'; childrenContainerDiv.style.borderLeft = 'none'; if (svg.querySelector('.collapse-indicator')) { svg.querySelector('.collapse-indicator').textContent = ''; } } else { if (nodeType === 'array') { data.forEach((item, index) => { renderJsonTree(item, childrenContainerDiv, `[${index}]`); }); } else { Object.entries(data).forEach(([propKey, propValue]) => { renderJsonTree(propValue, childrenContainerDiv, propKey); }); } } if (nodeDiv.classList.contains('is-collapsed')) { childrenContainerDiv.style.maxHeight = '0'; childrenContainerDiv.style.opacity = '0'; childrenContainerDiv.style.marginTop = '0'; childrenContainerDiv.style.paddingTop = '0'; childrenContainerDiv.style.paddingBottom = '0'; childrenContainerDiv.style.borderWidth = '0'; } }
+        }
+        
+        // 调用初始化函数
+        initializeApp();
+
+    </script>
+</body>
+</html>
