@@ -17,7 +17,7 @@
 - 能打开的文件大小取决于你的内存和浏览器性能（笔者测试100MB的没问题）
 
 ##  快速开始
-1. 直接访问[github.io](https://eachgo.github.io/JSON_Euler_Diagram/index.html)或
+1. 直接访问[github.io](https://eachgo.github.io/JSON_Euler_Diagram/)或
 2. 本地运行：
 1. 从指定位置下载单文件 HTML 文件。
 2. 找到下载好的 HTML 文件，双击该文件即可在默认浏览器中打开并使用。
