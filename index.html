@@ -5,47 +5,320 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON 可视化 生成欧拉图</title>
     <link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.webmanifest">
     <style>
-        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; color: #333; display: flex; flex-direction: row; height: 100vh; overflow: hidden; }
-        #visualizationRoot { flex-grow: 1; border: 1px solid #ccc; padding: 10px; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1) inset; overflow: auto; height: 100%; }
-        #sidePanel { width: 300px; flex-shrink: 0; background-color: #e9e9e9; box-shadow: -2px 0 4px rgba(0,0,0,0.1); padding: 15px; overflow-y: auto; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
-        #sidePanel h1 { font-size: 1.5em; margin-top: 0; margin-bottom: 15px; color: #333; text-align: center; }
-        #controls { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
-        #controls label, #controls input[type="file"], #controls p { display: block; margin-bottom: 8px; }
-        #controls input[type="file"] { width: 100%; }
-        #themeSelectorContainer { margin-bottom: 15px; }
-        #themeSelectorContainer label { margin-right: 10px; font-weight: bold; }
-        #themeSelector { padding: 5px; border-radius: 4px; border: 1px solid #ccc; min-width: 150px;}
-        #colorCustomization { margin-top: 10px; }
-        #colorCustomization h2 { font-size: 1.1em; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-        .color-setting-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; }
-        .color-preview-swatch { width: 20px; height: 20px; border: 1px solid #888; margin-right: 8px; border-radius: 3px; flex-shrink: 0; }
-        .color-setting-item label { width: 110px; margin-right: 5px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .color-setting-item input[type="text"] { flex-grow: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px; }
-        .color-setting-item input[type="text"].invalid-color { border-color: red; background-color: #ffe0e0; }
-        #colorActionButtons { margin-top: 15px; display: flex; gap: 10px; }
-        #colorActionButtons button { flex-grow: 1; padding: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; background-color: #f0f0f0; cursor: pointer; }
-        #colorActionButtons button:hover { background-color: #e0e0e0; }
-        .json-node { margin: 3px; border: 1px solid rgba(0,0,0,0.1); border-radius: 4px; box-sizing: border-box; position: relative; }
-        .is-primitive-leaf { display: inline-block; vertical-align: top; padding: 1px 3px; 
-            min-height: 3em;overflow: hidden; min-width: 30%;}
-        .is-primitive-leaf .json-node-content-svg { height: 20px; min-height: 20px; }
-        .has-children-container { padding: 3px; }
-        .has-children-container > .node-label-svg { height: 22px; min-height: 22px; width: 100%; display: block; margin-bottom: 4px; cursor: pointer; border-radius: 2px; }
-        .has-children-container > .node-label-svg:hover { filter: brightness(1.1); }
-        .node-children-container { padding-left: 15px; margin-left: 5px; border-left: 2px solid rgba(0,0,0,0.15); transition: max-height 0.3s ease-out, opacity 0.3s ease-out;  overflow: hidden; opacity: 1;}
-        .has-children-container.is-collapsed > .node-children-container { max-height: 0; opacity: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
-        .has-children-container.is-collapsed > .node-label-svg { margin-bottom: 0; }
-        .svg-rect { }
-        .svg-text { font-size: 10px; dominant-baseline: middle; pointer-events: none; }
-        .svg-key-text { font-weight: bold; font-size: 11px; }
-    </style>
+       
+    /* :root 定义了将被各主题具体化的 CSS 变量 */
+:root {
+    /* 数据类型颜色变量 */
+    --color-object: rgba(180, 220, 180, 0.5); /* Default 主题的 OBJECT 颜色 */
+    --color-array: rgba(190, 210, 230, 0.5);  /* Default 主题的 ARRAY 颜色 */
+    --color-string: rgb(0, 116, 217);
+    --color-number: rgb(217, 0, 116);
+    --color-boolean-true: rgb(46, 204, 64);
+    --color-boolean-false: rgb(255, 65, 54);
+    --color-null: rgb(128, 128, 128);
+
+    /* 界面与文本颜色变量 */
+    --color-text: #111111;                    /* Default 主题的 TEXT_COLOR */
+    --color-viz-background: #ffffff;          /* Default 主题的 VIZ_BACKGROUND */
+
+    /* 派生颜色或特定 UI 元素颜色 (示例) */
+    --color-object-label-bg: rgba(198, 227, 198, 0.7); /* Default 主题 OBJECT 标签背景 */
+    --color-array-label-bg: rgba(205, 217, 233, 0.7);  /* Default 主题 ARRAY 标签背景 */
+    /* 如果叶子节点的背景不是其类型颜色，而是统一的 */
+    /* --color-leaf-node-bg: #f0f0f0; */
+}
+
+/* 主题定义：覆盖 :root 中的变量值 */
+[data-theme="Default"] {
+    /* 数据类型颜色变量 */
+    --color-object: rgba(180, 220, 180, 0.5); /* Default 主题的 OBJECT 颜色 */
+    --color-array: rgba(190, 210, 230, 0.5);  /* Default 主题的 ARRAY 颜色 */
+    --color-string: rgb(0, 116, 217);
+    --color-number: rgb(217, 0, 116);
+    --color-boolean-true: rgb(46, 204, 64);
+    --color-boolean-false: rgb(255, 65, 54);
+    --color-null: rgb(128, 128, 128);
+
+    /* 界面与文本颜色变量 */
+    --color-text: #111111;                    /* Default 主题的 TEXT_COLOR */
+    --color-viz-background: #ffffff;          /* Default 主题的 VIZ_BACKGROUND */
+
+    /* 派生颜色或特定 UI 元素颜色 (示例) */
+    --color-object-label-bg: rgba(198, 227, 198, 0.7); /* Default 主题 OBJECT 标签背景 */
+    --color-array-label-bg: rgba(205, 217, 233, 0.7);  /* Default 主题 ARRAY 标签背景 */
+    /* 如果叶子节点的背景不是其类型颜色，而是统一的 */
+    /* --color-leaf-node-bg: #f0f0f0; */
+}
+
+[data-theme="Blue"] {
+    --color-object: roklch(59.435% .077 254.027);
+    --color-array: oklch(69.651% .059 248.687);
+    --color-string: oklch(32.437% .022 264.182);
+    --color-number: oklch(45.229% .035 264.131);
+    --color-boolean-true: oklch(15.365% .014 131.063);
+    --color-boolean-false: oklch(60.61% .12 15.341);
+    --color-null: rgb(117, 113, 94);
+    --color-text:oklch(76.827% .074 131.063);
+    --color-viz-background: #272822;
+    --color-object-label-bg: oklch(12.122% .024 15.341); 
+    --color-array-label-bg: oklch(45.229% .035 264.131); 
+}
+
+
+
+[data-theme="Light"] {
+    --color-object: rgba(133, 153, 0, 0.3);
+    --color-array: rgba(38, 139, 210, 0.3);
+    --color-string: rgb(42, 161, 152);
+    --color-number: rgb(211, 54, 130);
+    --color-boolean-true: rgb(133, 153, 0);
+    --color-boolean-false: rgb(220, 50, 47);
+    --color-null: rgb(101, 123, 131);
+    --color-text: #586e75;
+    --color-viz-background: #fdf6e3;
+    --color-object-label-bg: rgba(140, 160, 30, 0.4);
+    --color-array-label-bg: rgba(68, 149, 215, 0.4);
+}
+[data-theme="Forest"] {
+    --color-object: hsl(120, 30%, 65%, 0.6); /* 柔和的绿色 */
+    --color-array: hsl(150, 25%, 70%, 0.6);  /* 略带青色的绿色 */
+    --color-string: #D2B48C;                 /* 树干棕褐色 (Tan) */
+    --color-number: #8FBC8F;                 /* 暗海绿色 (DarkSeaGreen) */
+    --color-boolean-true: #3CB371;           /* 中海绿色 (MediumSeaGreen) */
+    --color-boolean-false: #CD5C5C;          /* 印度红 (IndianRed) */
+    --color-null: #A9A9A9;                   /* 暗灰色 (DarkGray) */
+    --color-text: #F5F5DC;                   /* 米色 (Beige) - 用于深色背景 */
+    --color-viz-background: #2F4F2F;         /* 暗橄榄绿 (DarkOliveGreen) - 深色背景 */
+    --color-object-label-bg: hsl(120, 30%, 70%, 0.75);
+    --color-array-label-bg: hsl(150, 25%, 75%, 0.75);
+}
+
+[data-theme="Aqua"] {
+    --color-object: oklch(80% 0.12 200 / 0.6); /* 浅水蓝 */
+    --color-array: oklch(75% 0.15 220 / 0.6);  /* 稍深的蓝色 */
+    --color-string: #FFD700;                  /* 金色 (Gold) - 对比 */
+    --color-number: #00CED1;                  /* 暗宝石兰 (DarkTurquoise) */
+    --color-boolean-true: #20B2AA;            /* 亮海洋绿 (LightSeaGreen) */
+    --color-boolean-false: #FF6347;           /* 番茄色 (Tomato) */
+    --color-null: #B0E0E6;                    /* 粉蓝色 (PowderBlue) */
+    --color-text: #003366;                    /* 深海军蓝 - 用于浅色背景 */
+    --color-viz-background: #E0FFFF;          /* 淡青色 (LightCyan) - 浅色背景 */
+    --color-object-label-bg: oklch(83% 0.1 200 / 0.75);
+    --color-array-label-bg: oklch(78% 0.13 220 / 0.75);
+}
+
+[data-theme="Luxury"] {
+    --color-object: rgba(218, 165, 32, 0.4);  /* 金色 (Goldenrod alpha) */
+    --color-array: rgba(128, 0, 32, 0.4);    /* 深勃艮第红 (Maroon/Burgundy alpha) */
+    --color-string: #09090B;                 /* 卡其色 (Khaki) */
+    --color-number: #513448;                 /* 暗金黄色 (DarkGoldenrod) */
+    --color-boolean-true: #152747;           /* 暗橄榄绿 (DarkOliveGreen) */
+    --color-boolean-false: #8B0000;          /* 暗红色 (DarkRed) */
+    --color-null: #A0522D;                   /* 黄褐色 (Sienna) */
+    --color-text: #DCA54D;                   
+    --color-viz-background: #36013F;         /* 深紫色背景 (近似 Aubergine) */
+    --color-object-label-bg: #1E1D1F;
+    --color-array-label-bg: rgba(140, 20, 50, 0.55);
+}
+
+[data-theme="Dracula"] {
+    --color-object: oklch(24.787% .019 277.508);  /* 使用primary-content颜色 */
+    --color-array: oklch(14.84% .029 301.883);   /* 使用secondary-content颜色 */
+    --color-string: oklch(16.678% .024 66.558);  /* 使用accent-content颜色 */
+    --color-number: oklch(17.419% .043 148.024); /* 使用neutral-content颜色 */
+    --color-boolean-true: oklch(17.419% .043 148.024); /* 使用success-content颜色 */
+    --color-boolean-false: oklch(13.644% .041 24.43);  /* 使用error-content颜色 */
+    --color-null: oklch(19.106% .026 112.757);   /* 使用warning-content颜色 */
+    --color-text: oklch(74.202% .148 301.883);   /* 保持当前亮色系 */
+    --color-viz-background: oklch(24.787% .019 277.508); /* 使用base-300颜色 */
+    --color-object-label-bg: oklch(15.092% .036 346.812);
+    --color-array-label-bg: oklch(14.84% .029 301.883);
+}
+
+[data-theme="Acid"] {
+    --color-object: hsla(120, 100%, 50%, 0.4); /* 鲜绿色 (Lime Green alpha) */
+    --color-array: hsla(300, 100%, 50%, 0.4);  /* 品红色 (Magenta alpha) */
+    --color-string: #FFFF00;                  /* 纯黄 (Yellow) */
+    --color-number: #00FFFF;                  /* 青色 (Cyan) */
+    --color-boolean-true: #FF00FF;            /* 品红 (Magenta for true) */
+    --color-boolean-false: #FF7F00;           /* 橙色 (Orange for false) */
+    --color-null: #808080;                    /* 灰色 (Gray) */
+    --color-text: #FFFFFF;                    /* 白色文字 */
+    --color-viz-background: #1A1A1A;          /* 非常暗的灰色背景 */
+    --color-object-label-bg: hsla(120, 100%, 55%, 0.55);
+    --color-array-label-bg: hsla(300, 100%, 55%, 0.55);
+}
+
+/* 用户自定义主题CSS变量将通过 <style id="userThemeStyleSheet"> 注入 */
+/* 它将定义 [data-theme="Custom"] { --color-object: ...; ... } */
+
+/* ---------------- 基本应用样式 ---------------- */
+body {
+    font-family: sans-serif; margin: 0;
+    background-color: #f4f4f4; /* 外层背景，非可视化区 */
+    color: var(--color-text); /* 全局文本颜色，会被 #sidePanel 覆盖 */
+    display: flex; flex-direction: row; height: 100vh; overflow: hidden;
+}
+
+#visualizationRoot {
+    flex-grow: 1; border: 1px solid #ccc; padding: 10px;
+    background-color: var(--color-viz-background);
+    /* color: var(--color-text); /* 如果希望可视化区文本颜色也受主题控制 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) inset; overflow: auto; height: 100%;
+}
+
+#sidePanel {
+    width: 350px; flex-shrink: 0;
+    background-color: #e9e9e9; /* 侧边栏背景固定或也用变量 */
+    color: #333; /* 侧边栏文本颜色固定或也用变量 */
+    box-shadow: -2px 0 4px rgba(0,0,0,0.1); padding: 15px; overflow-y: auto;
+    height: 100%; box-sizing: border-box; display: flex; flex-direction: column;
+}
+#sidePanel h1 { font-size: 1.5em; margin-top: 0; margin-bottom: 15px; color: #333; text-align: center; }
+#controls { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+#controls label, #controls input[type="file"], #controls p { display: block; margin-bottom: 8px; }
+#controls input[type="file"] { width: 100%; }
+
+/* --- Theme Cards & Modal (样式与之前类似, 但卡片预览的背景色等也应使用CSS变量) --- */
+#themeCardsContainer { margin-top: 20px; }
+#themeCardsContainer h2 { font-size: 1.2em; margin-bottom: 10px; text-align: center; }
+.theme-card {
+    border: 2px solid #ccc; border-radius: 6px; padding: 8px; margin-bottom: 12px;
+    cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s; position: relative;
+}
+.theme-card:hover { border-color: #888; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+.theme-card.active { border-color: #007bff; box-shadow: 0 0 8px rgba(0,123,255,0.3); }
+
+.theme-card-inner-preview { /* 预览区域 */
+    border-radius: 4px; padding: 5px; text-align: center; overflow: hidden;
+    /* JS在创建卡片时，会用 getPropertyValue 获取对应主题的变量值来设置这里的具体颜色 */
+}
+.theme-name-bar { /* 预览中的主题名称条 */
+    font-weight: bold; padding: 4px 0; margin-bottom: 5px;
+    border-radius: 3px; font-size: 0.9em;
+}
+.color-strip { /* 预览中的颜色条带 */
+    display: flex; height: 20px; border-radius: 3px; overflow: hidden;
+}
+.color-block { flex-grow: 1; } /* 预览中颜色条带的小色块 */
+
+.edit-custom-theme-btn { /* 编辑按钮 */
+    position: absolute; top: 5px; right: 5px; font-size: 0.8em;
+    padding: 3px 6px; background-color: #f0f0f0; border: 1px solid #ccc;
+    border-radius: 3px; cursor: pointer;
+}
+.edit-custom-theme-btn:hover { background-color: #e0e0e0; }
+
+#customThemeModal { /* 自定义主题模态框 */
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5); display: none; /* JS控制显示 */
+    justify-content: center; align-items: center; z-index: 1000;
+}
+#customThemeModalContent {
+    background-color: #fff; padding: 20px; border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: auto; max-width: 500px;
+}
+#customThemeModalContent h3 { margin-top: 0; }
+#customThemeTextarea { width: 100%; box-sizing: border-box; font-family: monospace; margin-bottom: 10px; }
+#customThemeModalActions { display: flex; justify-content: flex-end; gap: 10px; }
+#customThemeStatus { margin-top: 10px; font-size: 0.9em; min-height: 1.2em; }
+
+/* --- Legend Styles --- */
+#legendContainer { margin-top: 25px; padding-top: 15px; border-top: 1px solid #ddd; }
+#legendContainer h2 { font-size: 1.2em; margin-bottom: 10px; text-align: center;}
+.legend-item {
+    display: flex; align-items: center; margin-bottom: 6px;
+    padding: 4px; border-radius: 3px; font-size: 0.9em;
+    /* background-color: var(--color-viz-background); /* 图例项背景可设为可视化区背景的变体 */
+}
+.legend-color-swatch { /* 图例色块 */
+    width: 18px; height: 18px; border: 1px solid rgba(0,0,0,0.2);
+    margin-right: 8px; border-radius: 3px; flex-shrink: 0;
+    /* 背景色将由JS根据当前主题的CSS变量动态设置 */
+}
+.legend-label { color: var(--color-text); } /* 图例文本 */
+
+
+/* ---------------- JSON 节点样式 ---------------- */
+.json-node {
+    margin: 3px;
+    border: 1px solid rgba(0,0,0,0.1); /* 边框颜色可以固定或也用变量 */
+    border-radius: 4px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* 容器节点背景色 */
+.json-node.json-type-object.has-children-container { background-color: var(--color-object); }
+.json-node.json-type-array.has-children-container { background-color: var(--color-array); }
+
+/* 叶子节点背景色 */
+.json-node.is-primitive-leaf.json-type-string { background-color: var(--color-string); }
+.json-node.is-primitive-leaf.json-type-number { background-color: var(--color-number); }
+.json-node.is-primitive-leaf.json-type-boolean-true { background-color: var(--color-boolean-true); }
+.json-node.is-primitive-leaf.json-type-boolean-false { background-color: var(--color-boolean-false); }
+.json-node.is-primitive-leaf.json-type-null { background-color: var(--color-null); }
+
+
+.is-primitive-leaf { display: inline-block; vertical-align: top; padding: 1px 3px; min-height: 3em; overflow: hidden; min-width: 30%;}
+.is-primitive-leaf .json-node-content-svg { height: 20px; min-height: 20px; }
+
+.has-children-container { padding: 3px; }
+.has-children-container > .node-label-svg { height: 22px; min-height: 22px; width: 100%; display: block; margin-bottom: 4px; cursor: pointer; border-radius: 2px; }
+.has-children-container > .node-label-svg:hover { filter: brightness(1.1); } /* 这个 filter 可能需要根据主题调整 */
+
+.node-children-container {
+    padding-left: 15px; margin-left: 5px;
+    border-left: 2px solid rgba(0,0,0,0.15); /* 这个颜色也可以用变量 */
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    overflow: hidden; opacity: 1;
+}
+.has-children-container.is-collapsed > .node-children-container { max-height: 0; opacity: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+.has-children-container.is-collapsed > .node-label-svg { margin-bottom: 0; }
+
+/* ---------------- SVG 元素样式 ---------------- */
+.svg-text {
+    font-size: 10px;
+    dominant-baseline: middle;
+    pointer-events: none;
+    fill: var(--color-text); /* SVG 文本颜色受主题控制 */
+}
+.svg-key-text {
+    font-weight: bold;
+    font-size: 11px;
+    /* fill 继承自 .svg-text 或单独设置 */
+}
+
+/* SVG 矩形 (标签背景) */
+.node-label-svg .svg-rect.rect-object-label-bg { fill: var(--color-object-label-bg); }
+.node-label-svg .svg-rect.rect-array-label-bg { fill: var(--color-array-label-bg); }
+/* SVG 矩形 (叶子节点背景 - 如果SVG rect也用于叶子节点) */
+.json-node-content-svg .svg-rect.rect-string-bg { fill: var(--color-string); }
+.json-node-content-svg .svg-rect.rect-number-bg { fill: var(--color-number); }
+.json-node-content-svg .svg-rect.rect-boolean-true-bg { fill: var(--color-boolean-true); }
+.json-node-content-svg .svg-rect.rect-boolean-false-bg { fill: var(--color-boolean-false); }
+.json-node-content-svg .svg-rect.rect-null-bg { fill: var(--color-null); }
+
+/* 一个通用的 .svg-rect，如果没有更具体的类，它可以用作回退或不设置fill让父级div背景透出 */
+.svg-rect {
+    /* stroke: var(--color-svg-rect-border); */ /* 如果需要边框 */
+    /* stroke-width: 1px; */
+}
+
+</style>
+<!-- 这个 style 标签用于 JS 注入用户自定义的主题 -->
+<style id="userThemeStylesheet"></style>
 </head>
-<body>
-    <div id="visualizationRoot"></div>
+<body data-theme="Default"> <!-- 或者在 #visualizationRoot 上设置 data-theme -->
+
+    <div id="visualizationRoot">
+        <!-- JSON 树将渲染在这里 -->
+    </div>
+
     <div id="sidePanel">
         <h1>由JSON文件生成欧拉图</h1>
         <div id="controls">
@@ -53,337 +326,555 @@
             <input type="file" id="jsonFile" accept=".json">
             <p id="status"></p>
         </div>
-        <div id="themeSelectorContainer">
-            <label for="themeSelector">选择主题:</label>
-            <select id="themeSelector"></select>
+
+        <div id="themeCardsContainer">
+            <h2>选择主题:</h2>
+            <!-- Theme cards will be dynamically inserted here -->
         </div>
-        <div id="colorCustomization">
-            <h2>颜色设置 (当前主题: <span id="currentThemeNameDisplay"></span>)</h2>
-            <div id="colorSettingsContainer"></div>
-            <div id="colorActionButtons">
-                <button id="applyColorsBtn">应用自定义颜色</button>
-                <button id="resetThemeColorsBtn">恢复主题默认色</button>
+
+        <div id="legendContainer">
+            <h2>图例:</h2>
+            <div id="legendItems">
+                <!-- Legend items will be dynamically inserted here -->
             </div>
         </div>
     </div>
 
+    <!-- Custom Theme Modal -->
+    <div id="customThemeModal" style="display: none;">
+        <div id="customThemeModalContent">
+            <h3>编辑自定义主题</h3>
+            <p>请在下方文本框中定义 <code>[data-theme="Custom"] { ... }</code> CSS 规则，并包含以下自定义属性 (可以使用任何有效的CSS颜色值):</p>
+            <pre><code id="cssVarExample" style="font-size: 0.8em; display: block; background: #f0f0f0; padding: 5px; border-radius: 3px; white-space: pre-wrap;">
+                [data-theme="Custom"] {
+                    --color-object: oklch(80% 0.1 150);  /* 对象背景色, 例如: oklch, hsl, #RRGGBB, rgba(), colorname */
+                    --color-array: rgba(190, 210, 230, 0.7); /* 数组背景色 */
+                    --color-string: #0074D9;             /* 字符串背景色 */
+                    --color-number: plum;                /* 数字背景色 */
+                    --color-boolean-true: limegreen;     /* 布尔值(true)背景色 */
+                    --color-boolean-false: tomato;       /* 布尔值(false)背景色 */
+                    --color-null: slategray;             /* Null值背景色 */
+                
+                    --color-text: oklch(20% 0.05 270);   /* 主要文本颜色 */
+                    --color-viz-background: #fafafa;     /* 可视化区域背景色 */
+                
+                    /* 可选: 为容器标签定义不同的背景色 (如果未提供, SVG rect 将尝试使用对应类型的颜色) */
+                    --color-object-label-bg: oklch(85% 0.08 150);
+                    --color-array-label-bg: rgba(200, 220, 240, 0.85);
+                }
+                            </code></pre>
+            <textarea id="customThemeTextarea" rows="15" cols="60"></textarea>
+            <div id="customThemeModalActions">
+                <button id="saveCustomThemeBtn">保存并应用</button>
+                <button id="cancelCustomThemeBtn">取消</button>
+            </div>
+            <p id="customThemeStatus"></p>
+        </div>
+    </div>
+
     <script>
-        const COLOR_THEMES = {
-            "Default": { // Brighter, more distinct leaf colors, container colors with some alpha
-                OBJECT: 'rgba(180, 220, 180, 0.5)', // Softer green bg
-                ARRAY: 'rgba(190, 210, 230, 0.5)',  // Softer blue bg
-                STRING: 'rgb(0, 116, 217)',        // More solid blue for text
-                NUMBER: 'rgb(217, 0, 116)',        // More solid magenta for text
-                BOOLEAN_TRUE: 'rgb(46, 204, 64)',   // Solid green
-                BOOLEAN_FALSE: 'rgb(255, 65, 54)',  // Solid red
-                NULL: 'rgb(128, 128, 128)',        // Solid grey
-                TEXT_COLOR: '#111111',
-                VIZ_BACKGROUND: '#ffffff'
-            },
-            "Monokai": { // Alpha slightly reduced for backgrounds, increased for foregrounds
-                OBJECT: 'rgba(166, 226, 46, 0.45)', // Monokai Green (bg)
-                ARRAY: 'rgba(102, 217, 239, 0.45)', // Monokai Cyan (bg)
-                STRING: 'rgb(230, 219, 116)',     // Monokai Yellow (fg)
-                NUMBER: 'rgb(174, 129, 255)',     // Monokai Purple (fg)
-                BOOLEAN_TRUE: 'rgb(166, 226, 46)',  // Brighter Green (fg)
-                BOOLEAN_FALSE: 'rgb(249, 38, 114)', // Brighter Pink (fg)
-                NULL: 'rgb(117, 113, 94)',         // Monokai Comment Grey (fg)
-                TEXT_COLOR: '#F8F8F2',
-                VIZ_BACKGROUND: '#272822'
-            },
-            "Solarized Dark": {
-                OBJECT: 'rgba(133, 153, 0, 0.4)', ARRAY: 'rgba(38, 139, 210, 0.4)',
-                STRING: 'rgb(42, 161, 152)', NUMBER: 'rgb(211, 54, 130)',
-                BOOLEAN_TRUE: 'rgb(133, 153, 0)', BOOLEAN_FALSE: 'rgb(220, 50, 47)',
-                NULL: 'rgb(101, 123, 131)', TEXT_COLOR: '#93a1a1', // Base01 for text
-                VIZ_BACKGROUND: '#002b36' // Base03
-            },
-            "Solarized Light": {
-                OBJECT: 'rgba(133, 153, 0, 0.3)', ARRAY: 'rgba(38, 139, 210, 0.3)',
-                STRING: 'rgb(42, 161, 152)', NUMBER: 'rgb(211, 54, 130)',
-                BOOLEAN_TRUE: 'rgb(133, 153, 0)', BOOLEAN_FALSE: 'rgb(220, 50, 47)',
-                NULL: 'rgb(101, 123, 131)', TEXT_COLOR: '#586e75', // Base0
-                VIZ_BACKGROUND: '#fdf6e3' // Base3
-            }
-        };
-        let COLORS = {};
-        let currentThemeName = "Default"; 
-
-        const LEGEND_LABELS = { 
-            OBJECT: 'Object (对象)', ARRAY: 'Array (数组)', STRING: 'String (字符串)',
-            NUMBER: 'Number (数字)', BOOLEAN_TRUE: 'Boolean: true', BOOLEAN_FALSE: 'Boolean: false',
-            NULL: 'Null (空值)'
-        };
+        // --- 常量与全局变量 ---
         const SVG_NS = "http://www.w3.org/2000/svg";
-        const PRIMITIVE_SVG_HEIGHT = 20; const TEXT_PADDING_X = 5;
+        const PRIMITIVE_SVG_HEIGHT = 20;
+        const TEXT_PADDING_X = 5;
 
-        const fileInput = document.getElementById('jsonFile');
-        const vizRoot = document.getElementById('visualizationRoot');
-        const statusP = document.getElementById('status');
-        const themeSelector = document.getElementById('themeSelector');
-        const currentThemeNameDisplay = document.getElementById('currentThemeNameDisplay');
-        const colorSettingsContainer = document.getElementById('colorSettingsContainer');
-        const applyColorsBtn = document.getElementById('applyColorsBtn');
-        const resetThemeColorsBtn = document.getElementById('resetThemeColorsBtn');
-        
+        // 主题相关常量
+        const ACTIVE_THEME_NAME_STORAGE_KEY = 'jsonVizActiveThemeName';
+        const CUSTOM_THEME_CSS_STORAGE_KEY = 'jsonVizUserCustomThemeCSS'; // 注意键名已更改
+        const PREDEFINED_THEME_NAMES = [
+            "Default",
+            "Blue",
+            "Light", 
+            "Forest",
+            "Aqua",
+            "Luxury",
+            "Dracula",
+            "Acid"
+        ];
+        const ALL_THEME_CSS_COLOR_KEYS = [ // 用于生成图例和卡片预览，以及自定义主题提示
+            "OBJECT", "ARRAY", "STRING", "NUMBER",
+            "BOOLEAN_TRUE", "BOOLEAN_FALSE", "NULL",
+            "TEXT", "VIZ_BACKGROUND",
+            "OBJECT_LABEL_BG", "ARRAY_LABEL_BG" // 包含了可选的标签背景
+        ];
+         const THEME_KEY_TO_CHINESE_NAME = {
+            OBJECT: '对象 (Object)',
+            ARRAY: '数组 (Array)',
+            STRING: '字符串 (String)',
+            NUMBER: '数字 (Number)',
+            BOOLEAN_TRUE: '布尔值: True',
+            BOOLEAN_FALSE: '布尔值: False',
+            NULL: '空值 (Null)',
+            // TEXT 和 VIZ_BACKGROUND 通常不直接在类型图例中显示，但保留映射可能有用
+            TEXT: '文本 (Text Color)',
+            VIZ_BACKGROUND: '背景 (Viz Background)',
+            OBJECT_LABEL_BG: '对象标签背景',
+            ARRAY_LABEL_BG: '数组标签背景'
+        };
+
+
+        // 默认的用户自定义主题CSS规则 (当localStorage中没有时使用)
+        const DEFAULT_USER_THEME_CSS_RULES = `
+[data-theme="Custom"] {
+    --color-object: oklch(80% 0.1 150);
+    --color-array: rgba(190, 210, 230, 0.7);
+    --color-string: #0074D9;
+    --color-number: plum;
+    --color-boolean-true: limegreen;
+    --color-boolean-false: tomato;
+    --color-null: slategray;
+    --color-text: oklch(20% 0.05 270);
+    --color-viz-background: #fafafa;
+    --color-object-label-bg: oklch(85% 0.08 150);
+    --color-array-label-bg: rgba(200, 220, 240, 0.85);
+}`;
+
         let currentJsonData = null;
+        let currentThemeName = "Default"; // 默认活动主题
+
+        // --- DOM 元素引用 ---
+        const vizRoot = document.getElementById('visualizationRoot');
+        const THEME_TARGET_ELEMENT = document.body; // 主题 data-theme 属性应用在此元素上
+        const fileInput = document.getElementById('jsonFile');
+        const statusP = document.getElementById('status');
+        const themeCardsContainer = document.getElementById('themeCardsContainer');
+        const legendItemsContainer = document.getElementById('legendItems');
+
+        const customThemeModal = document.getElementById('customThemeModal');
+        const customThemeTextarea = document.getElementById('customThemeTextarea');
+        const saveCustomThemeBtn = document.getElementById('saveCustomThemeBtn');
+        const cancelCustomThemeBtn = document.getElementById('cancelCustomThemeBtn');
+        const customThemeStatusP = document.getElementById('customThemeStatus');
+        const userThemeStylesheet = document.getElementById('userThemeStylesheet');
+
 
         // --- 初始化 ---
         function initializeApp() {
-            populateThemeSelector();
-            const storedThemeName = localStorage.getItem('jsonVizThemeName');
-            if (storedThemeName && COLOR_THEMES[storedThemeName]) {
-                currentThemeName = storedThemeName;
-            }
-            // 设置下拉菜单以反映当前主题
-            themeSelector.value = currentThemeName; 
-            // 加载并应用初始主题
-            loadAndApplyTheme(currentThemeName); 
-        }
+            loadAndInjectUserCustomThemeCSS();
+            generateAllThemeCards();
 
-
-        // --- 事件监听器 ---
-        fileInput.addEventListener('change', handleFile);
-        themeSelector.addEventListener('change', handleThemeChange);
-        applyColorsBtn.addEventListener('click', applyCustomColorsToCurrentTheme);
-        resetThemeColorsBtn.addEventListener('click', resetCurrentThemeToDefaults);
-
-
-        /**
-         * 填充主题选择器的选项
-         */
-        function populateThemeSelector() { 
-            for (const themeName in COLOR_THEMES) {
-                const option = document.createElement('option');
-                option.value = themeName;
-                option.textContent = themeName;
-                themeSelector.appendChild(option);
-            }
-        }
-
-        /**
-         * 加载主题的颜色（基础颜色或存储的自定义颜色）到全局 COLORS 对象中，然后应用到 UI 上。
-         * @param {string} themeName - 要加载的主题名称
-         */
-        function loadAndApplyTheme(themeName) {
-            currentThemeName = themeName;
-            // 确保下拉菜单同步
-            themeSelector.value = currentThemeName; 
-            currentThemeNameDisplay.textContent = currentThemeName;
-
-            const themeDefaults = COLOR_THEMES[currentThemeName];
-            const storedCustomColors = localStorage.getItem(`jsonVizCustomColors_${currentThemeName}`);
-            
-            if (storedCustomColors) {
-                try {
-                    const parsedCustomColors = JSON.parse(storedCustomColors);
-                    COLORS = { ...themeDefaults, ...parsedCustomColors };
-                } catch (e) {
-                    console.error(`解析主题 ${currentThemeName} 的自定义颜色时出错:`, e);
-                    // 回退到主题默认颜色
-                    COLORS = { ...themeDefaults }; 
-                }
+            const storedActiveThemeName = localStorage.getItem(ACTIVE_THEME_NAME_STORAGE_KEY);
+            // 确保存储的主题名仍然有效，如果无效则回退到 Default
+            if (PREDEFINED_THEME_NAMES.includes(storedActiveThemeName) || storedActiveThemeName === "Custom") {
+                currentThemeName = storedActiveThemeName;
             } else {
-                // 没有自定义颜色，使用主题默认颜色
-                COLORS = { ...themeDefaults }; 
+                currentThemeName = "Default";
+            }
+            applyTheme(currentThemeName);
+
+            // 事件监听器
+            fileInput.addEventListener('change', handleFile);
+            if (saveCustomThemeBtn) saveCustomThemeBtn.addEventListener('click', handleSaveCustomTheme);
+            if (cancelCustomThemeBtn) cancelCustomThemeBtn.addEventListener('click', () => {
+                if (customThemeModal) customThemeModal.style.display = 'none';
+                if (customThemeStatusP) customThemeStatusP.textContent = '';
+            });
+        }
+
+        // --- 主题管理 ---
+        function loadAndInjectUserCustomThemeCSS() {
+            let customThemeCSSRules = localStorage.getItem(CUSTOM_THEME_CSS_STORAGE_KEY);
+            if (!customThemeCSSRules || customThemeCSSRules.trim() === "") {
+                customThemeCSSRules = DEFAULT_USER_THEME_CSS_RULES;
+                // 可选: 如果是第一次加载默认规则，可以将其存入 localStorage
+                // localStorage.setItem(CUSTOM_THEME_CSS_STORAGE_KEY, customThemeCSSRules);
             }
 
-            // 应用主题的视觉方面
-            // 如果未指定，则默认为白色
-            vizRoot.style.backgroundColor = COLORS.VIZ_BACKGROUND || '#ffffff'; 
-            // 注意: renderJsonTree 将使用 COLORS.TEXT_COLOR 作为 SVG 文本颜色
+            if (userThemeStylesheet) {
+                userThemeStylesheet.textContent = customThemeCSSRules;
+            } else {
+                console.error("Element with ID 'userThemeStylesheet' not found. Cannot inject custom theme CSS.");
+            }
+        }
 
-            // 使用当前 COLORS 更新颜色输入字段
-            generateColorSettingInputs(); 
+        function applyTheme(themeName) {
+            currentThemeName = themeName;
+            localStorage.setItem(ACTIVE_THEME_NAME_STORAGE_KEY, currentThemeName);
+            THEME_TARGET_ELEMENT.dataset.theme = themeName; // 切换主题
+
+            // 重新渲染JSON树 (如果已加载数据)
             if (currentJsonData) {
                 renderJsonTree(currentJsonData, vizRoot, 'ROOT');
             }
-            // 这里不需要保存，因为此函数是关于加载和应用的。保存操作在显式操作时进行。
-        }
-        
-        /**
-         * 保存当前主题名称及其当前的 COLORS（可能是自定义的）
-         */
-        function saveCurrentThemeState() { 
-            localStorage.setItem('jsonVizThemeName', currentThemeName);
-            localStorage.setItem(`jsonVizCustomColors_${currentThemeName}`, JSON.stringify(COLORS));
-        }
-        
-        /**
-         * 处理主题选择更改事件
-         */
-        function handleThemeChange() {
-            const selectedThemeName = themeSelector.value;
-            loadAndApplyTheme(selectedThemeName);
-            // 保存新选择的主题为活动主题
-            saveCurrentThemeState(); 
+            updateActiveCardVisuals();
+            updateLegend();
         }
 
-        /**
-         * 验证并规范化颜色字符串
-         * @param {string} colorString - 要验证和规范化的颜色字符串
-         * @returns {string|null} - 规范化后的颜色字符串，如果无效则返回 null
-         */
-        function validateAndNormalizeColor(colorString) { /* ... 保持不变 ... */ 
-            const tempEl = document.createElement('div'); tempEl.style.color = 'transparent';
-            tempEl.style.color = colorString; const computedColor = window.getComputedStyle(tempEl).color;
-            if (computedColor && computedColor !== 'transparent' && computedColor !== 'rgba(0, 0, 0, 0)' && (colorString.toLowerCase() === 'black' || computedColor !== 'rgb(0, 0, 0)')) {
-                if (colorString.trim() === '' && computedColor === 'rgb(0, 0, 0)') return null;
-                return computedColor; 
-            } return null;
-        }
+        function generateAllThemeCards() {
+            if (!themeCardsContainer) return;
+            themeCardsContainer.innerHTML = '<h2>选择主题:</h2>';
 
-        /**
-         * 生成颜色设置输入字段，确保使用当前主题名称和全局 COLORS 对象
-         */
-        function generateColorSettingInputs() { /* ... 保持不变，确保使用 currentThemeName 和全局 COLORS ... */
-            colorSettingsContainer.innerHTML = '';
-            const themeColorKeys = Object.keys(COLOR_THEMES[currentThemeName] || COLOR_THEMES["Default"]);
-
-            for (const type of themeColorKeys) {
-                // 仅为 LEGEND_LABELS 中的类型创建输入字段
-                if (LEGEND_LABELS[type]) { 
-                    const itemDiv = document.createElement('div'); itemDiv.classList.add('color-setting-item');
-                    const swatch = document.createElement('div'); swatch.classList.add('color-preview-swatch');
-                    swatch.style.backgroundColor = COLORS[type]; 
-                    itemDiv.appendChild(swatch);
-                    const label = document.createElement('label'); label.textContent = LEGEND_LABELS[type] + ':';
-                    label.htmlFor = `color-input-${type}`; itemDiv.appendChild(label);
-                    const colorInput = document.createElement('input'); colorInput.type = 'text';
-                    colorInput.id = `color-input-${type}`; colorInput.value = COLORS[type];
-                    colorInput.dataset.type = type;
-                    colorInput.addEventListener('input', () => {
-                        const normalizedColor = validateAndNormalizeColor(colorInput.value);
-                        if (normalizedColor) { swatch.style.backgroundColor = normalizedColor; colorInput.classList.remove('invalid-color'); }
-                        else { swatch.style.backgroundColor = 'transparent'; colorInput.classList.add('invalid-color'); }
-                    });
-                    itemDiv.appendChild(colorInput); colorSettingsContainer.appendChild(itemDiv);
-                }
-            }
-        }
-
-        /**
-         * 将自定义颜色应用到当前主题
-         */
-        function applyCustomColorsToCurrentTheme() {
-            let allValid = true;
-            // 仅存储更改的值
-            const tempCustomColorsForThisTheme = {}; 
-            document.querySelectorAll('#colorSettingsContainer input[type="text"]').forEach(input => {
-                const type = input.dataset.type;
-                const normalizedColor = validateAndNormalizeColor(input.value);
-                if (normalizedColor) {
-                    // 仅当与主题的基础颜色不同时才存储
-                    if (COLOR_THEMES[currentThemeName][type] !== normalizedColor) {
-                         tempCustomColorsForThisTheme[type] = normalizedColor;
-                    }
-                    input.classList.remove('invalid-color');
-                } else { allValid = false; input.classList.add('invalid-color'); /* ... 错误消息 ... */ }
+            PREDEFINED_THEME_NAMES.forEach(name => {
+                themeCardsContainer.appendChild(createThemeCard(name));
             });
+            themeCardsContainer.appendChild(createThemeCard("Custom")); // 为自定义主题创建卡片
+            updateActiveCardVisuals();
+        }
 
-            if (allValid) {
-                // 更新工作 COLORS: 从基础主题开始，然后覆盖该主题的所有存储的自定义颜色，
-                // 然后覆盖新应用的更改。
-                // 更简单地说: 直接用验证后的输入更新 COLORS。
-                const newWorkingColors = {};
-                 document.querySelectorAll('#colorSettingsContainer input[type="text"]').forEach(input => {
-                    const type = input.dataset.type;
-                    // 已经验证过
-                    newWorkingColors[type] = validateAndNormalizeColor(input.value); 
+        function createThemeCard(themeName) {
+            const card = document.createElement('div');
+            card.classList.add('theme-card');
+            card.dataset.themeName = themeName;
+            card.title = `选择主题: ${themeName}`;
+
+            const preview = document.createElement('div');
+            preview.classList.add('theme-card-inner-preview');
+
+            const nameBar = document.createElement('div');
+            nameBar.classList.add('theme-name-bar');
+            nameBar.textContent = themeName;
+
+            const strip = document.createElement('div');
+            strip.classList.add('color-strip');
+
+            // 为了给卡片预览上色，我们需要获取对应主题的计算颜色值
+            // 创建一个临时元素来应用主题并采样颜色
+            const sampler = document.createElement('div');
+            sampler.style.display = 'none'; // 不可见
+            sampler.dataset.theme = themeName; // 应用目标主题
+            THEME_TARGET_ELEMENT.appendChild(sampler); // 必须附加到DOM才能计算样式
+
+            try {
+                const computedStyles = window.getComputedStyle(sampler);
+                preview.style.backgroundColor = computedStyles.getPropertyValue('--color-viz-background').trim();
+                nameBar.style.backgroundColor = computedStyles.getPropertyValue('--color-object').trim();
+                nameBar.style.color = computedStyles.getPropertyValue('--color-text').trim();
+                strip.style.backgroundColor = computedStyles.getPropertyValue('--color-array').trim();
+
+                ['STRING', 'NUMBER', 'BOOLEAN_TRUE', 'BOOLEAN_FALSE', 'NULL'].forEach(key => {
+                    const block = document.createElement('span');
+                    block.classList.add('color-block');
+                    block.style.backgroundColor = computedStyles.getPropertyValue(`--color-${key.toLowerCase().replace('_', '-')}`).trim();
+                    strip.appendChild(block);
                 });
-                // 确保包含所有主题键
-                COLORS = {...COLOR_THEMES[currentThemeName], ...newWorkingColors}; 
-
-                // 这将 `COLORS` 作为自定义颜色保存到 `currentThemeName` 中
-                saveCurrentThemeState(); 
-                // 重新加载并重新应用以正确反映更改
-                loadAndApplyTheme(currentThemeName); 
-                statusP.textContent = "自定义颜色已应用。"; statusP.style.color = 'green';
-            } else { /* ... 错误处理 ... */ 
-                statusP.textContent = `存在无效的颜色值。`; statusP.style.color = 'red';
+            } catch (e) {
+                console.error(`Error sampling colors for theme card "${themeName}":`, e);
+                // 预览失败时的回退样式
+                preview.style.backgroundColor = "#eee";
+                nameBar.style.backgroundColor = "#ccc";
+                nameBar.style.color = "#333";
+            } finally {
+                THEME_TARGET_ELEMENT.removeChild(sampler); // 清理临时元素
             }
-            setTimeout(() => { statusP.textContent = ''; statusP.style.color = ''; }, 3000);
+
+            preview.appendChild(nameBar);
+            preview.appendChild(strip);
+            card.appendChild(preview);
+
+            if (themeName === "Custom") {
+                const editButton = document.createElement('button');
+                editButton.classList.add('edit-custom-theme-btn');
+                editButton.textContent = '编辑';
+                editButton.onclick = (e) => {
+                    e.stopPropagation();
+                    openCustomThemeModal();
+                };
+                card.appendChild(editButton);
+            }
+
+            card.addEventListener('click', () => applyTheme(themeName));
+            return card;
         }
 
-        /**
-         * 将当前主题恢复到默认颜色
-         */
-        function resetCurrentThemeToDefaults() {
-            // 重新加载纯主题颜色
-            COLORS = { ...COLOR_THEMES[currentThemeName] }; 
-            // 移除该主题的自定义颜色
-            localStorage.removeItem(`jsonVizCustomColors_${currentThemeName}`); 
-            // 注意: 这里不需要保存 jsonVizThemeName，因为它没有改变
-            // 这将加载纯主题并重新应用
-            loadAndApplyTheme(currentThemeName); 
-            statusP.textContent = `主题 "${currentThemeName}" 已恢复默认颜色。`; statusP.style.color = 'green';
-            setTimeout(() => { statusP.textContent = ''; statusP.style.color = '';}, 3000);
+        function updateActiveCardVisuals() {
+            const cards = document.querySelectorAll('#themeCardsContainer .theme-card');
+            cards.forEach(card => {
+                if (card.dataset.themeName === currentThemeName) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
         }
 
-        /**
-         * 处理文件上传事件
-         * @param {Event} event - 文件上传事件对象
-         */
-        function handleFile(event) { /* ... 保持不变 ... */ 
+        function openCustomThemeModal() {
+            let themeCSSText = localStorage.getItem(CUSTOM_THEME_CSS_STORAGE_KEY);
+            if (!themeCSSText || themeCSSText.trim() === "") {
+                themeCSSText = DEFAULT_USER_THEME_CSS_RULES;
+            }
+            if (customThemeTextarea) customThemeTextarea.value = themeCSSText;
+            if (customThemeModal) customThemeModal.style.display = 'flex';
+            if (customThemeStatusP) {
+                customThemeStatusP.textContent = '';
+                customThemeStatusP.style.color = '';
+            }
+        }
+
+        function handleSaveCustomTheme() {
+            if (!customThemeTextarea || !customThemeStatusP || !userThemeStylesheet) return;
+
+            const newThemeCSSText = customThemeTextarea.value.trim();
+            customThemeStatusP.textContent = '';
+
+            if (newThemeCSSText === "") {
+                customThemeStatusP.textContent = '错误: CSS 内容不能为空。';
+                customThemeStatusP.style.color = 'red';
+                return;
+            }
+            // 非常基础的检查，确保至少包含 [data-theme="Custom"]
+            if (!newThemeCSSText.includes('[data-theme="Custom"]')) {
+                 customThemeStatusP.textContent = '警告: CSS 定义应包含 [data-theme="Custom"] { ... } 规则。';
+                 customThemeStatusP.style.color = 'orange';
+                 // 仍然允许保存
+            }
+
+            localStorage.setItem(CUSTOM_THEME_CSS_STORAGE_KEY, newThemeCSSText);
+            userThemeStylesheet.textContent = newThemeCSSText; // 立即应用新的CSS规则
+
+            customThemeStatusP.textContent = '自定义主题CSS已保存!';
+            customThemeStatusP.style.color = 'green';
+
+            generateAllThemeCards(); // 重绘卡片以反映新的自定义主题预览
+
+            // 如果当前主题是Custom，确保其被应用（虽然CSS已更新，但可能需要触发相关JS更新）
+            if (currentThemeName === "Custom") {
+                 applyTheme("Custom"); // 重新应用以确保图例等更新
+            }
+
+            setTimeout(() => {
+                if (customThemeModal) customThemeModal.style.display = 'none';
+                customThemeStatusP.textContent = '';
+            }, 1500);
+        }
+
+        // --- 图例更新 ---
+        function updateLegend() {
+            if (!legendItemsContainer) return;
+            legendItemsContainer.innerHTML = '';
+
+            const computedStyles = window.getComputedStyle(THEME_TARGET_ELEMENT);
+
+            // 只为数据类型相关的键创建图例项
+            const legendColorKeys = ["OBJECT", "ARRAY", "STRING", "NUMBER", "BOOLEAN_TRUE", "BOOLEAN_FALSE", "NULL"];
+
+            legendColorKeys.forEach(key => {
+                const cssVarName = `--color-${key.toLowerCase().replace('_', '-')}`;
+                const actualColor = computedStyles.getPropertyValue(cssVarName).trim();
+                const chineseName = THEME_KEY_TO_CHINESE_NAME[key];
+
+                if (actualColor && chineseName) {
+                    const legendItem = document.createElement('div');
+                    legendItem.classList.add('legend-item');
+
+                    const swatch = document.createElement('div');
+                    swatch.classList.add('legend-color-swatch');
+                    swatch.style.backgroundColor = actualColor;
+                    legendItem.appendChild(swatch);
+
+                    const label = document.createElement('span');
+                    label.classList.add('legend-label');
+                    label.textContent = chineseName;
+                    // label.style.color 由CSS的 .legend-label { color: var(--color-text); } 控制
+                    legendItem.appendChild(label);
+
+                    legendItemsContainer.appendChild(legendItem);
+                }
+            });
+        }
+
+
+        // --- 文件处理与JSON渲染 ---
+        function handleFile(event) {
             const file = event.target.files[0];
             if (file && file.type === "application/json") {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     try {
-                        currentJsonData = JSON.parse(e.target.result); 
-                        statusP.textContent = "文件已加载，正在生成图表..."; statusP.style.color = '';
+                        currentJsonData = JSON.parse(e.target.result);
+                        if(statusP) { statusP.textContent = "文件已加载，正在生成图表..."; statusP.style.color = '';}
                         renderJsonTree(currentJsonData, vizRoot, 'ROOT');
-                        statusP.textContent = "图表生成完毕。";
-                    } catch (error) { currentJsonData = null; console.error("JSON 解析错误:", error); statusP.textContent = `JSON 解析错误: ${error.message}`; statusP.style.color = 'red'; clearVisualization(); }
+                        if(statusP) { statusP.textContent = "图表生成完毕。"; }
+                    } catch (error) {
+                        currentJsonData = null;
+                        console.error("JSON 解析错误:", error);
+                        if(statusP) { statusP.textContent = `JSON 解析错误: ${error.message}`; statusP.style.color = 'red';}
+                        clearVisualization();
+                    }
                 };
-                reader.onerror = function() { currentJsonData = null; statusP.textContent = "文件读取错误。"; statusP.style.color = 'red'; clearVisualization(); }
+                reader.onerror = function() {
+                    currentJsonData = null;
+                    if(statusP) { statusP.textContent = "文件读取错误。"; statusP.style.color = 'red';}
+                    clearVisualization();
+                }
                 reader.readAsText(file);
-            } else { if(file) {statusP.textContent = "请选择一个有效的.json文件。"; statusP.style.color = 'orange';} }
+            } else {
+                if(file && statusP) {statusP.textContent = "请选择一个有效的.json文件。"; statusP.style.color = 'orange';}
+            }
         }
-        /**
-         * 清除可视化区域的内容
-         */
-        function clearVisualization() { vizRoot.innerHTML = ''; }
-        /* ... createSvgElement, estimateTextWidth, lightenDarken 函数 ... */
-        /**
-         * 创建一个 SVG 元素
-         * @param {string} tagName - SVG 元素的标签名
-         * @param {Object} attributes - 要设置的属性对象
-         * @returns {SVGElement} - 创建好的 SVG 元素
-         */
-        function createSvgElement(tagName, attributes) { const el = document.createElementNS(SVG_NS, tagName); for (const key in attributes) { el.setAttribute(key, attributes[key]); } return el; }
-        /**
-         * 估算文本的宽度
-         * @param {string} text - 要估算宽度的文本
-         * @param {string} [font="10px sans-serif"] - 文本的字体样式
-         * @returns {number} - 估算的文本宽度
-         */
-        function estimateTextWidth(text, font = "10px sans-serif") { const canvas = estimateTextWidth.canvas || (estimateTextWidth.canvas = document.createElement("canvas")); const context = canvas.getContext("2d"); context.font = font; const metrics = context.measureText(text); return metrics.width; }
-        /**
-         * 调整 RGBA 颜色的亮度
-         * @param {string} rgbaColor - 要调整的 RGBA 颜色字符串
-         * @param {number} percent - 亮度调整百分比
-         * @returns {string} - 调整后的 RGBA 颜色字符串
-         */
-        function lightenDarkenRgba(rgbaColor, percent) { const parts = rgbaColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/); if (!parts) return rgbaColor; let r = parseInt(parts[1]); let g = parseInt(parts[2]); let b = parseInt(parts[3]); const a = parseFloat(parts[4]); const p = percent / 100; r = Math.round(Math.min(255, Math.max(0, r * (1 + p)))); g = Math.round(Math.min(255, Math.max(0, g * (1 + p)))); b = Math.round(Math.min(255, Math.max(0, b * (1 + p)))); return `rgba(${r}, ${g}, ${b}, ${a})`; }
-        /**
-         * 调整颜色的亮度
-         * @param {string} color - 要调整的颜色字符串
-         * @param {number} percent - 亮度调整百分比
-         * @returns {string} - 调整后的颜色字符串
-         */
-        function lightenDarkenColor(color, percent) { if (color.startsWith("rgb(")) { const parts = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/); if (!parts) return color; let r = parseInt(parts[1]), newR, g = parseInt(parts[2]), newG, b = parseInt(parts[3]), newB; const p = percent / 100; newR = Math.round(Math.min(255, Math.max(0, r * (1 + p) ))); newG = Math.round(Math.min(255, Math.max(0, g * (1 + p) ))); newB = Math.round(Math.min(255, Math.max(0, b * (1 + p) ))); return `rgb(${newR}, ${newG}, ${newB})`; } let usePound = false; if (color[0] == "#") { color = color.slice(1); usePound = true; } let num = parseInt(color, 16); let r_ = (num >> 16); let newR_ = Math.round(Math.min(255, Math.max(0, r_ * (1 + percent/100) ))); let b__ = ((num >> 8) & 0x00FF); let newB__ = Math.round(Math.min(255, Math.max(0, b__ * (1 + percent/100) ))); let g__ = (num & 0x0000FF); let newG__ = Math.round(Math.min(255, Math.max(0, g__ * (1 + percent/100) ))); let newColorHex = (newG__ | (newB__ << 8) | (newR__ << 16)).toString(16); while(newColorHex.length < 6) { newColorHex = "0" + newColorHex; } return (usePound ? "#" : "") + newColorHex; }
-        /**
-         * 渲染 JSON 树
-         * @param {any} data - 要渲染的 JSON 数据
-         * @param {HTMLElement} parentHtmlElement - 父 HTML 元素
-         * @param {string} keyName - 键名
-         */
-        function renderJsonTree(data, parentHtmlElement, keyName) { /* ... (与之前相同，确保使用 COLORS.TEXT_COLOR) ... */
-            if (parentHtmlElement === vizRoot) { clearVisualization(); } const nodeDiv = document.createElement('div'); nodeDiv.classList.add('json-node'); let nodeColorValue, nodeType, fullDisplayText = '', shortDisplayText = '', isContainer = false; if (typeof data === 'string') { nodeColorValue = COLORS.STRING; nodeType = 'string'; fullDisplayText = `"${data}"`; } else if (typeof data === 'number') { nodeColorValue = COLORS.NUMBER; nodeType = 'number'; fullDisplayText = String(data); } else if (typeof data === 'boolean') { nodeColorValue = data ? COLORS.BOOLEAN_TRUE : COLORS.BOOLEAN_FALSE; nodeType = 'boolean'; fullDisplayText = String(data); } else if (data === null) { nodeColorValue = COLORS.NULL; nodeType = 'null'; fullDisplayText = 'null'; } else if (Array.isArray(data)) { nodeColorValue = COLORS.ARRAY; nodeType = 'array'; isContainer = true; fullDisplayText = `Array [${data.length}]`; } else if (typeof data === 'object') { nodeColorValue = COLORS.OBJECT; nodeType = 'object'; isContainer = true; fullDisplayText = `Object {${Object.keys(data).length}}`; } else { return; } nodeDiv.classList.add(`json-type-${nodeType}`); nodeDiv.style.backgroundColor = nodeColorValue; if (!isContainer) { nodeDiv.classList.add('is-primitive-leaf'); } else { nodeDiv.classList.add(nodeType === 'array' ? 'json-array' : 'json-object'); nodeDiv.classList.add('has-children-container');  } parentHtmlElement.appendChild(nodeDiv); const svg = createSvgElement('svg', {}); svg.classList.add(isContainer ? 'node-label-svg' : 'json-node-content-svg'); let labelRectColor; const mainColorIsRgba = typeof nodeColorValue === 'string' && nodeColorValue.startsWith('rgba'); if (isContainer) { if (mainColorIsRgba) { labelRectColor = lightenDarkenRgba(nodeColorValue, 15); } else { labelRectColor = lightenDarkenColor(nodeColorValue, 15); } } else { labelRectColor = nodeColorValue; } const rect = createSvgElement('rect', { x: 0, y: 0, width: '100%', height: '100%', fill: labelRectColor, class: 'svg-rect' }); svg.appendChild(rect); const textLabel = createSvgElement('text', { x: TEXT_PADDING_X, y: '50%', class: 'svg-text', fill: COLORS.TEXT_COLOR || '#111' }); let effectiveKeyName = ''; const parentIsArrayChildren = parentHtmlElement.classList.contains('json-array-children'); if (keyName && keyName !== 'ROOT') { if (parentIsArrayChildren || !isContainer) { effectiveKeyName = keyName; } else if (isContainer && !parentIsArrayChildren) { effectiveKeyName = keyName; } } let fullLabelForWidth = (effectiveKeyName ? `${effectiveKeyName}: ` : '') + fullDisplayText; let fontSize = "10px"; if (isContainer || (effectiveKeyName && !parentIsArrayChildren && keyName !== 'ROOT')) { fontSize = "11px"; } let estimatedWidth = estimateTextWidth(fullLabelForWidth, `${fontSize} sans-serif`) + (2 * TEXT_PADDING_X); if(!isContainer) { nodeDiv.style.width = `${Math.max(30, estimatedWidth)}px`; svg.style.height = `${PRIMITIVE_SVG_HEIGHT}px`; } else { svg.style.height = "22px";  } shortDisplayText = fullDisplayText; const maxChars = isContainer ? 25 : 18; if (fullDisplayText.length > maxChars) { shortDisplayText = fullDisplayText.substring(0, maxChars - 3) + "..."; } if(effectiveKeyName) { const keySpan = createSvgElement('tspan', {class: 'svg-key-text', 'font-size': fontSize}); keySpan.textContent = `${effectiveKeyName}: `; textLabel.appendChild(keySpan); } const valueSpan = createSvgElement('tspan', {'font-size': fontSize}); valueSpan.textContent = shortDisplayText; if (isContainer) { const indicatorSpan = createSvgElement('tspan', {'font-size': '9px', 'dx': '5px'}); indicatorSpan.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]'; indicatorSpan.classList.add('collapse-indicator'); valueSpan.appendChild(indicatorSpan); } textLabel.appendChild(valueSpan); svg.appendChild(textLabel); nodeDiv.appendChild(svg); if (isContainer) { const childrenContainerDiv = document.createElement('div'); childrenContainerDiv.classList.add('node-children-container'); childrenContainerDiv.classList.add(nodeType === 'array' ? 'json-array-children' : 'json-object-children'); nodeDiv.appendChild(childrenContainerDiv); svg.addEventListener('dblclick', function() { nodeDiv.classList.toggle('is-collapsed'); const indicator = svg.querySelector('.collapse-indicator'); if (indicator) { indicator.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]'; } }); const childData = (nodeType === 'array') ? data : Object.entries(data); if (childData.length === 0) { childrenContainerDiv.style.minHeight = '0px'; childrenContainerDiv.style.paddingLeft = '0px'; childrenContainerDiv.style.marginLeft = '0px'; childrenContainerDiv.style.borderLeft = 'none'; if (svg.querySelector('.collapse-indicator')) { svg.querySelector('.collapse-indicator').textContent = ''; } } else { if (nodeType === 'array') { data.forEach((item, index) => { renderJsonTree(item, childrenContainerDiv, `[${index}]`); }); } else { Object.entries(data).forEach(([propKey, propValue]) => { renderJsonTree(propValue, childrenContainerDiv, propKey); }); } } if (nodeDiv.classList.contains('is-collapsed')) { childrenContainerDiv.style.maxHeight = '0'; childrenContainerDiv.style.opacity = '0'; childrenContainerDiv.style.marginTop = '0'; childrenContainerDiv.style.paddingTop = '0'; childrenContainerDiv.style.paddingBottom = '0'; childrenContainerDiv.style.borderWidth = '0'; } }
+
+        function clearVisualization() {
+            if (vizRoot) vizRoot.innerHTML = '';
         }
-        
-        // 调用初始化函数
+
+        function renderJsonTree(data, parentHtmlElement, keyName) {
+            if (parentHtmlElement === vizRoot) {
+                clearVisualization();
+            }
+            const nodeDiv = document.createElement('div');
+            nodeDiv.classList.add('json-node');
+
+            let nodeType, fullDisplayText = '', shortDisplayText = '';
+            let isContainer = false;
+            let specificTypeClass = ''; // 用于更精确的CSS类名，例如 boolean-true
+            let cssColorVarSuffix = ''; // 例如 'object', 'string', 'boolean-true'
+
+            if (typeof data === 'string') {
+                nodeType = 'string'; cssColorVarSuffix = 'string'; fullDisplayText = `"${data}"`;
+                specificTypeClass = 'json-type-string';
+            } else if (typeof data === 'number') {
+                nodeType = 'number'; cssColorVarSuffix = 'number'; fullDisplayText = String(data);
+                specificTypeClass = 'json-type-number';
+            } else if (typeof data === 'boolean') {
+                nodeType = 'boolean';
+                cssColorVarSuffix = data ? 'boolean-true' : 'boolean-false';
+                fullDisplayText = String(data);
+                specificTypeClass = data ? 'json-type-boolean-true' : 'json-type-boolean-false';
+            } else if (data === null) {
+                nodeType = 'null'; cssColorVarSuffix = 'null'; fullDisplayText = 'null';
+                specificTypeClass = 'json-type-null';
+            } else if (Array.isArray(data)) {
+                nodeType = 'array'; cssColorVarSuffix = 'array'; isContainer = true; fullDisplayText = `Array [${data.length}]`;
+                specificTypeClass = 'json-type-array';
+            } else if (typeof data === 'object') {
+                nodeType = 'object'; cssColorVarSuffix = 'object'; isContainer = true; fullDisplayText = `Object {${Object.keys(data).length}}`;
+                specificTypeClass = 'json-type-object';
+            } else {
+                return; // 未知类型
+            }
+
+            nodeDiv.classList.add(specificTypeClass); // e.g., json-type-object, json-type-boolean-true
+            // 背景色由CSS通过 .json-node.json-type-object 等类名控制，这里不再设置 nodeDiv.style.backgroundColor
+
+            if (!isContainer) {
+                nodeDiv.classList.add('is-primitive-leaf');
+            } else {
+                nodeDiv.classList.add('has-children-container');
+            }
+            parentHtmlElement.appendChild(nodeDiv);
+
+            // --- 创建SVG标签 ---
+            const svg = createSvgElement('svg', {});
+            svg.classList.add(isContainer ? 'node-label-svg' : 'json-node-content-svg');
+
+            const rect = createSvgElement('rect', { x: 0, y: 0, width: '100%', height: '100%' });
+            rect.classList.add('svg-rect'); // 通用类
+            // 为rect添加更具体的类，以便CSS可以针对性地设置fill
+            if (isContainer) {
+                rect.classList.add(`rect-${cssColorVarSuffix}-label-bg`); // e.g., rect-object-label-bg
+            } else {
+                rect.classList.add(`rect-${cssColorVarSuffix}-bg`); // e.g., rect-string-bg (用于叶子节点SVG的背景)
+            }
+            svg.appendChild(rect);
+
+            const textLabel = createSvgElement('text', { x: TEXT_PADDING_X, y: '50%' });
+            textLabel.classList.add('svg-text'); // CSS会处理fill: var(--color-text)
+
+            let effectiveKeyName = '';
+            const parentIsArrayChildren = parentHtmlElement.classList.contains('json-array-children');
+            if (keyName && keyName !== 'ROOT') {
+                if (parentIsArrayChildren || !isContainer) {
+                    effectiveKeyName = keyName;
+                } else if (isContainer && !parentIsArrayChildren) {
+                    effectiveKeyName = keyName;
+                }
+            }
+
+            let fontSize = "10px";
+            if (isContainer || (effectiveKeyName && !parentIsArrayChildren && keyName !== 'ROOT')) {
+                fontSize = "11px";
+            }
+
+            // 估算宽度以设置叶子节点的最小宽度 (如果需要)
+            if (!isContainer) {
+                let fullLabelForWidth = (effectiveKeyName ? `${effectiveKeyName}: ` : '') + fullDisplayText;
+                let estimatedWidth = estimateTextWidth(fullLabelForWidth, `${fontSize} sans-serif`) + (2 * TEXT_PADDING_X);
+                nodeDiv.style.minWidth = `${Math.max(30, estimatedWidth)}px`; // 使用minWidth而不是width
+                svg.style.height = `${PRIMITIVE_SVG_HEIGHT}px`;
+            } else {
+                svg.style.height = "22px";
+            }
+
+            shortDisplayText = fullDisplayText;
+            const maxChars = isContainer ? 25 : 18;
+            if (fullDisplayText.length > maxChars) {
+                shortDisplayText = fullDisplayText.substring(0, maxChars - 3) + "...";
+            }
+
+            if (effectiveKeyName) {
+                const keySpan = createSvgElement('tspan', { class: 'svg-key-text', 'font-size': fontSize });
+                keySpan.textContent = `${effectiveKeyName}: `;
+                textLabel.appendChild(keySpan);
+            }
+            const valueSpan = createSvgElement('tspan', { 'font-size': fontSize });
+            valueSpan.textContent = shortDisplayText;
+            textLabel.appendChild(valueSpan);
+
+            if (isContainer) {
+                const indicatorSpan = createSvgElement('tspan', { 'font-size': '9px', 'dx': '5px' });
+                indicatorSpan.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]';
+                indicatorSpan.classList.add('collapse-indicator');
+                valueSpan.appendChild(indicatorSpan); // 将指示器附加到值后面
+
+                svg.addEventListener('dblclick', function() { // 用 dblclick 折叠/展开
+                    nodeDiv.classList.toggle('is-collapsed');
+                    const indicator = this.querySelector('.collapse-indicator'); // 'this' 指向 svg
+                    if (indicator) {
+                        indicator.textContent = nodeDiv.classList.contains('is-collapsed') ? ' [+]' : ' [-]';
+                    }
+                });
+            }
+            svg.appendChild(textLabel);
+            nodeDiv.appendChild(svg);
+
+            if (isContainer) {
+                const childrenContainerDiv = document.createElement('div');
+                childrenContainerDiv.classList.add('node-children-container');
+                childrenContainerDiv.classList.add(nodeType === 'array' ? 'json-array-children' : 'json-object-children');
+                nodeDiv.appendChild(childrenContainerDiv);
+
+                const childData = (nodeType === 'array') ? data : Object.entries(data);
+                if (childData.length === 0) {
+                    childrenContainerDiv.style.minHeight = '0px';
+                    childrenContainerDiv.style.paddingLeft = '0px';
+                    childrenContainerDiv.style.marginLeft = '0px';
+                    childrenContainerDiv.style.borderLeft = 'none';
+                    const indicator = svg.querySelector('.collapse-indicator');
+                    if (indicator) indicator.textContent = ''; // 清空空容器的指示器
+                } else {
+                    if (nodeType === 'array') {
+                        data.forEach((item, index) => {
+                            renderJsonTree(item, childrenContainerDiv, `[${index}]`);
+                        });
+                    } else { // object
+                        Object.entries(data).forEach(([propKey, propValue]) => {
+                            renderJsonTree(propValue, childrenContainerDiv, propKey);
+                        });
+                    }
+                }
+                // 折叠状态由CSS的 .is-collapsed > .node-children-container 控制
+            }
+        }
+
+
+        // --- 工具函数 ---
+        function createSvgElement(tagName, attributes) {
+            const el = document.createElementNS(SVG_NS, tagName);
+            for (const key in attributes) {
+                el.setAttribute(key, attributes[key]);
+            }
+            return el;
+        }
+
+        function estimateTextWidth(text, font = "10px sans-serif") {
+            const canvas = estimateTextWidth.canvas || (estimateTextWidth.canvas = document.createElement("canvas"));
+            const context = canvas.getContext("2d");
+            context.font = font;
+            const metrics = context.measureText(text);
+            return metrics.width;
+        }
+        // lightenDarkenRgba 和 lightenDarkenColor 函数不再需要，因为颜色由CSS变量控制
+
+        // --- 应用启动 ---
         initializeApp();
 
     </script>
